@@ -1,0 +1,31 @@
+{
+  "name": "pwd_nn",
+  "version": "0.0.1",
+  "description": "Run password guessing neural network in browser",
+  "main": "dist/index.js",
+  "devDependencies": {
+    "babel-preset-es2015": "^6.3.13",
+    "babelify": "^7.0.2",
+    "browserify": "^12.0.1",
+    "express": "^4.13.3",
+    "minifyify": "^7.1.0"
+  },
+  "dependencies": {
+    "js-cache": "^1.0.2",
+    "binarysearch": "^0.2.4",
+    "msgpack-lite" : "^0.1.14",
+    "neocortex-rnn-cups": "https://github.com/cupslab/javascript_neural_networks",
+    "md5" : "^2.0.0",
+    "base64-js" : "^1.0.2"
+  },
+  "scripts": {
+    "do-browserify" : "browserify src/nn-client.js -o build/nn-client.js && browserify src/worker.js -o build/worker.js",
+    "build": "sh build.sh",
+    "test": "cp build/* examples/ && cp tests/* examples/ && node examples/server.js"
+  },
+  "browserify": {
+    "transform": [
+      "babelify"
+    ]
+  }
+}

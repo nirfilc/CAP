@@ -1,0 +1,161 @@
+INTRO
+
+This is the javascript code for a browser implementation of a neural network
+password cracker.
+
+SETUP
+
+You will need to download and install node.js and the npm package manager and
+the jq utility. You will need to build your own neural network for running the
+javascript code, convert it to the correct format using the directions below.
+
+Compiling
+
+    Run from this directory:
+    npm install
+    npm run build
+
+Testing
+
+    Make sure that the neocortex.min.js file is copied into the examples directory.
+    Run from this directory (After compiling):
+    npm run test
+
+    There are two tests: test_suite.{html,js} and guessing_curve.{html,js}
+
+Creating a model
+
+    This section assumes you have a trained model (weight file and architecture
+    file) and configuration file from the pwd_guess.py step, and have prepared a
+    guessing file.
+
+    General steps:
+
+    1. Serialize a model.
+
+    In the utilities directory of this project, there is a utility to create
+    a model from an architecture file and a weight file. You need to make sure
+    that the utilities folder of the modified neocortex library is in your
+    PYTHONPATH. See the serializer_for_js.py file for more information about
+    supported options.
+
+    serializer_for_js.py model_file weight_file ofile
+
+    Make sure that the ofile matches the file name in worker.js and when
+    deployed is in the same directory as the worker.min.js file.
+
+    2. Create a guess number and model information file.
+
+    This extracts information about the post processing of the neural network
+    and how probabilities match guess numbers. See utils/extract_js_info.py for
+    more info. This needs to be done in the training directory.
+
+    extract_js_info.py model_config_file output_info_file.json
+
+    extract_prob_to_gn.py ifile --ofile output_guess_number_file.json
+
+    Combine these two files into one json file:
+
+    jq --slurp '.[0] * .[1]' output_info_file.json output_guess_number_file.json > info_file_and_gn.json
+
+    3. [Optional for testing] Generate test cases
+
+    This step is if you want to run test cases in the test_suite.js file. See
+    generate_js_test_cases.py for more information. Make sure that pwd_guess.py
+    is in your PYTHONPATH.
+
+    utils/generate_js_test_cases.py model_file weight_file config_file --output out_file
+
+    This will create a JSON file that should be saved to the same location as
+    the file name referenced from the test_suite.js file.
+
+    Test cases in test_suite.js may fail, especially if you are using a
+    quantized model, but should succeed for a non-quantized model.
+
+    If you want to use the guessing_curve.{html,js} code, then you must also
+    create a list of test passwords. This can be any list of passwords with one
+    password per line. Use the utils/to_json.py file to convert a list of
+    passwords to JSON format. Make sure that the output matches the filename in
+    the guessing_curve.js file.
+
+    4. [Optional but recommended for deployment]
+
+    Make sure that your web server compresses the model file. Gzip or deflate
+    compression are both fine and should work transparently. How to do this
+    depends on the web server that is being used.
+
+    5. [Optional but recommended for deployment]
+
+    Quantize the javascript model so that it takes less space. See the
+    quantize_json.py script for more details. This requires the json file from
+    step 1.
+
+    utils/quantize_json.py --ifile input_file_from_step1.json --ofile output_model_file.json [--bits #]
+
+    There are other options and piping configurations to use here that can
+    help. If you use a fixed point scale factor, you must edit the file from
+    step 2 by hand to add the 'fixed_point_scale' key to the json object.
+
+    6. [Optional bu recommended for deployment]
+
+    Create a bloom filter blacklist.
+
+    Take a list of strings to blacklist in relation to their rank in the
+    blacklist. Ideally this should be a small number of passwords.
+
+    First take the number of passwords that you want. You should use ideally
+    <10^6 passwords here.
+
+    head -n 1000000 [training data sorted by descending frequency] > first_n_passwords.txt
+
+    Remove non-guessable passwords for the policy. E.g., for basic8:
+
+    grep ".\{8,\}" first_n_passwords.txt > first_basic8_passwords.txt
+
+    (Optional) Filter out passwords that the neural network will already guess
+    soon. filter_probable_pwds.py is in the utils directory. You will need to
+    put the first_basic8_passwords into the server side guesser before this
+    step. For this step, I recommend using a tolerance of 10^3. Lower is more
+    conservative but includes more passwords.
+
+    python3 filter_probable_pwds.py first_basic8_passwords.txt [monte carlo guess numbers] --tolerance 3 > first_basic8_passwords_filtered.txt
+
+    Create a bloom filter.
+
+    python3 create_log_bloom_filter_list.py --ifile first_basic8_passwords_filtered.txt --ofile bloom_filter.json --json
+
+    This will create the file [bloom_filter.json] which is a bloom filter
+    containing all of the passwords in first_basic8_passwords_filtered.txt.
+
+    This json file must be included with the info file from step 2:
+
+    jq --slurp '.[0] * .[1]' output_from_step2.json bloom_filter.json > info_file.json
+
+USAGE
+
+First set up a neural network client by calling the constructor. This will
+create a new thread that downloads a model and can respond to requests for guess
+numbers. The argument in the constructor is a callback. This callback will be
+given two arguments: a guess number and the password that the guess number
+corresponds to.
+
+To get a guess number, call the query_guess_number function on the client. This
+is an asynchronous call. The guess number is returned via the callback given in
+the constructor.
+
+Minimal example of usage in javascript code:
+
+    var client = new NeuralNetworkClient(function(guess_number, pwd) {
+      // Do something with the password and guess number
+      console.log(pwd + ': ' + guess_number);
+    }, configuration);
+    // Request a guess number for a password
+    client.query_guess_number('ASDF123;!a');
+
+An example of the value of configuration is:
+{
+  intermediate: "basic_3M.info_and_guess_numbers.no_bloomfilter.json",
+  file: "basic_3M.weight_arch.quantized.fixed_point1000.zigzag.nospace.json",
+  zigzag: true,
+  scaleFactor: 300
+}

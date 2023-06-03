@@ -1,0 +1,752 @@
+Paper
+-----
+
+Fast, Lean, and Accurate: Modeling Password Guessability Using Neural Networks.
+W. Melicher, Blase Ur, Sean M. Segreti, Saranga Komanduri, Lujo Bauer, Nicolas Christin, Lorrie Faith Cranor. USENIX Security 2016.
+https://www.usenix.org/conference/usenixsecurity16/technical-sessions/presentation/melicher
+
+
+
+Bugs
+----
+
+This is software used and maintained by students for a research project and
+likely will have many bugs and issues.
+
+
+Setup using Docker
+------------------
+
+Make sure you have installed the NVIDIA driver (https://github.com/NVIDIA/nvidia-docker/wiki/Frequently-Asked-Questions#how-do-i-install-the-nvidia-driver) and Docker (https://docs.docker.com/install). For GPU support, additionally install nvidia-docker (https://github.com/NVIDIA/nvidia-docker).
+
+Build a CPU-only container and start an interactive bash session within it:
+
+    ./deploy.py build-cpu
+    ./deploy.py run-cpu
+
+Build a GPU-supported container and start an interactive bash session within it:
+
+    ./deploy.py build-gpu
+    ./deploy.py run-gpu
+
+Note: You may need to specify python3 when executing python scripts within the Docker container, e.g. `python3 pwd_guess_unit.py`.
+
+
+Setup (Manual)
+--------------
+
+  Requirements:
+
+  + python3
+
+  + python packages: listed in requirements.txt
+    Install with python3 -m pip install -r requirements.txt
+
+    - requirements-tensorflow-1.4.txt - dependencies for working with tensorflow v1.4
+    - requirements-tensorflow-cpu-1.4.txt - dependencies for working with
+      tensorflow v1.4 and using CPU only (no GPU).
+
+  Compiling:
+
+    python3 setup.py build_ext --inplace
+
+  Set up:
+
+    - Cuda must be in path and library path. Look at the tensorflow
+      documentation for how to set it up.
+
+Tests
+-----
+
+Run automated tests by:
+
+    python pwd_guess_unit.py
+
+Running all tests takes roughly 15 minutes on my machine. It may take more
+depending on the GPU you are using.
+
+
+or to run only specific tests:
+
+    python -m unittest pwd_guess_unit.<specific unit test>
+
+
+Help
+----
+
+python3 pwd_guess.py --help
+
+
+usage: pwd_guess.py [-h] [--pwd-file PWD_FILE [PWD_FILE ...]]
+                    [--arch-file ARCH_FILE] [--weight-file WEIGHT_FILE]
+                    [--pwd-format {trie,tsv,list,im_trie} [{trie,tsv,list,im_trie} ...]]
+                    [--enumerate-ofile ENUMERATE_OFILE] [--retrain]
+                    [--config CONFIG] [--args ARGS] [--profile PROFILE]
+                    [--log-file LOG_FILE]
+                    [--log-level {debug,info,warning,error}] [--version]
+                    [--pre-processing-only] [--stats-only]
+                    [--config-args CONFIG_ARGS]
+                    [--forked {guesser,random_walker}]
+                    [--calc-probability-only] [--train-secondary-only]
+
+Neural Network with passwords. This program uses a neural network to guess
+passwords. This happens in two phases, training and enumeration. Either --pwd-
+file or --enumerate-ofile are required. --pwd-file will give a password file
+as training data. --enumerate-ofile will guess passwords based on an existing
+model. Version <version number>
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --pwd-file PWD_FILE [PWD_FILE ...]
+                        Input file name.
+  --arch-file ARCH_FILE
+                        Output file for the model architecture.
+  --weight-file WEIGHT_FILE
+                        Output file for the weights of the model.
+  --pwd-format {trie,tsv,list,im_trie} [{trie,tsv,list,im_trie} ...]
+                        Format of pwd-file input. "list" format is onepassword
+                        per line. "tsv" format is tab separated values: first
+                        column is the password, second is the frequency in
+                        floating hex. "trie" is a custom binary format created
+                        by another step of this tool.
+  --enumerate-ofile ENUMERATE_OFILE
+                        Enumerate guesses output file
+  --retrain             Instead of training a new model, begin training the
+                        model in the weight-file and arch-file arguments.
+  --config CONFIG       Config file in json.
+  --args ARGS           Argument file in json.
+  --profile PROFILE     Profile execution and save to the given file.
+  --log-file LOG_FILE
+  --log-level {debug,info,warning,error}
+  --version             Print version number and exit
+  --pre-processing-only
+                        Only perform the preprocessing step.
+  --stats-only          Quit after reading in passwords and saving stats.
+  --config-args CONFIG_ARGS
+                        File with both configuration and arguments.
+  --forked {guesser,random_walker}
+                        Internal use only.
+  --calc-probability-only
+                        Only output password probabilities
+  --train-secondary-only
+                        Only train on secondary data.
+
+
+Pretrained Network Usage
+------------------------
+
+Enumerating passwords
+
+Edit guess_len8_config.json to replace "g1_len8.tsv" in the "enumerate_ofile"
+key with the output file you would like.
+
+If you want to guess more passwords, you should change the value of
+"lower_probability_threshold" to something lower, e.g. 1e-8.
+
+Passwords are not sorted, so if you want in order guessing, then sort the
+output file by descending probability:
+
+sort -gr -k2 -t$'\t' [OUTPUT_FILE] -o [SORTED_OUTPUT_FILE]
+
+
+Monte Carlo Simulation
+
+Edit guess_len8_config.json to replace "g1_len8.tsv" in the "enumerate_ofile"
+key with the output file you would like. Edit "<input_file>" in the
+"password_test_fname" key to set the password input file. This file should
+point to a line-delimited password file where each line is one password.
+
+
+Command:
+
+python3 <path_to_root>/pwd_guess.py --config-args <config_file.json>
+
+e.g.:
+
+python3 ../pwd_guess.py --config-args guess_len8_config.json
+
+
+
+Version
+-------
+
+python pwd_guess.py --version
+
+
+Output format
+-------------
+
+delamico_random_walk - This output format performs a monte-carlo estimation of
+the guess number, the strength of a password. The output file is a TSV where
+each line has 7 fields: the password, the probability of that password, the
+estimated output guess number (the strength of the password), the std deviation
+of the randomized trial for this password (in units of number of guess), the
+number of measurements for this password, the estimated confidence interval for
+the guess number (in units of number of guesses).
+
+human - This output format enumerates guesses and stores the list of passwords
+guessed to the output file. The guesses are not in order of probability. The
+otuput file is a TSV with each line having two fields: the password, and the
+probability. You can sort the passwords by probability using the unix sort
+command.
+
+calculator - This output format calculates the exact number of guesses for a
+test set of passwords by enumerating guesses. The output file is a TSV with 3
+fields: the password, the probability for that password, and the guess number.
+
+generate_random - This output format generates random passwords and stores them to
+disk. The output is a TSV with 2 fields: the random password and its probability.
+
+
+
+Config files
+------------
+
+Configuration information for guessing and training. Can be read from a file
+in json format.
+
+# Files Configuration Options:
+
+intermediate_fname - File name to store intermediate information about
+  processing relative to the current directory. A value of ':memory:' will
+  store all values in memory. Default is ':memory:'. This is necessary if
+  enumeration and training happen at different times.
+
+
+Neural network Model Configuration:
+
+char_bag - alphabet of characters over which to guess. By default this includes
+  all keyboard keys (e.g., alphanumeric characters and some symbols).
+
+model_type - type of model. Should be LSTM or GRU or JZS{1,2,3} (JZS1,2,3 are
+  only supported in earlier versions of the Keras library).
+
+hidden_size - Size of each layer hidden recurrent layer.
+
+dense_layers - Number of additional dense layers.
+
+dense_hidden_size - Size of dense layer.
+
+layers - Number of hidden layers.
+
+embedding_layer - Whether to use a character embedding layer as the first layer
+
+embedding_size - The size of the character embedding layer. embedding_layer has
+    to be set true along with this option
+
+max_len - Maximum length of any password in training data. This can be
+  larger than all passwords in the data and the network may output guesses
+  that are this many characters long.
+
+min_len - Minimum length of any password that will be guessed.
+
+model_optimizer - Model optimizer. Default is 'adam'. Read about optimzer
+  values from the Keras documentation: http://keras.io/optimizers/.
+
+context_length - Number of context characters to use. Lower means less time to
+  train, more could potentially increase accuracy.
+
+generations - More generations means it takes longer but is more accurate.
+  Default is 20.
+
+dropouts - Use neural network drop out weights. If true, can prevent
+  overfitting.
+
+dropout_ratio - Ratio of dropouts.
+
+train_backwards - If true, train on passwords backwards: e.g., guessing d from
+  'rowssap' instead of guessing d from 'passwor'.
+
+bidirectional_rnn - Only supported for some versions of Keras. If true, then
+  use a Bidirectional version of the neural network model.
+
+deep_model - If true, then train a deeper NN model. Set this to true if you
+  use more than one layer in the 'layers' argument.
+
+padding_character - If true, then use a padding character. This should
+generally be false, but is included for backward compatibility. Models trained
+before version 275 include a padding character.
+
+
+# Training Configuration Options:
+
+freq_format - can be 'hex' or 'decimal'. This defines the format of frequency
+  integers in the training sets. Only applicable when using TSV format for
+  input.
+
+secondary_training - If true, use a secondary training set after the primary
+  training set.
+
+secondary_train_sets - Json dictionary in this format:
+
+        "secondary_train_sets" : {
+            "pwd_file" : [
+                "<pwd_file>"
+            ],
+            "pwd_format" : [
+                "list"
+            ]
+        }
+    pwd_file is a list of files. pwd_format is a list of formats corresponding
+    to each file. Accepts the same options as the --pwd-format argument.
+
+freeze_feature_layers_during_secondary_training - If true, then during
+  secondary training, the feature layers will be frozen. This is useful for
+  avoiding overfitting to the secondary training set, especially if the
+  secondary training set is significantly smaller than the primary set.
+
+secondary_training_save_freqs - If true, then use the secondary training set
+  for post-processing frequencies instead of the primary set.
+
+training_chunk - Smaller training chunk means less memory consumed on
+  the GPU. Larger value training chunk means more GPU memory consumed. Ideally,
+  this value would be as large as possible without running out of memory on the
+  GPU. Potentially, there is a possibility that large values also have lower
+  quality training but I have not observed this to happen in practice.
+
+chunk_print_interval - Interval over which to print info to the log. This
+  value is also used to calculate the number of previous batches to
+  calculate the moving average loss for making early stopping decisions
+
+train_test_ratio - Ratio of training data to holdout testing data. A value of
+  20 means using one out of every 20 passwords for holdout testing. These
+  passwords are only used to print accuracy statistics in the log data and for
+  early-quit statistics. The logged accuracy statistics are only for diagnostic
+  and debugging purposes and should not be used in a real test. To perform a
+  real test, you should not give any test-passwords during training.
+
+training_accuracy_threshold - If the accuracy is not improving by this
+  amount each generation, then quit. Set to -1 to never quit early.
+
+rare_character_optimization - Default false. If you specify a list of
+  characters to treat as rare, then it will model those characters with a
+  rare character. This will increase performance at the expense of accuracy.
+
+rare_character_lowest_threshold - Default 20. The characters with the lowest
+  frequency in the training data will be modeled as special characters. This
+  number indicates how many to drop. A value of 20 means treating the 20 least
+  frequent characters in the training set as rare characters.
+
+uppercase_character_optimization - Default false. If true, uppercase
+  characters will be treated the same as lower case characters. Uppercase
+  characters will be predicted via post-processing output according to the
+  frequency of uppercase characters in the training data.
+
+no_end_word_cache - When rare_character_optimization or
+  upper_case_character_optimization is used, it uses different post-processing
+  percents for the first and last character. If no_end_word_cache is true, then
+  only the first character has different post-processing values. The intuition
+  for this is that uppercase characters are likely more probable as the first
+  character and special characters more likely as the last character.
+
+simulated_frequency_optimization - Default false. Only for TSV files. If set
+  to true, then multiple instances of the same password are simulated. This
+  can improve performance at the expense of accuracy.
+
+save_always - Boolean. Default true. If false, then only the networks which
+  perform best on verification data will be saved to disk.
+
+save_model_versioned - Boolean. When saving the model, save each generation of
+  the model using a different file name. You can use this to measure the effect
+  of more generations on models. The first generation is saved as
+  <model_file>.1, the second generation is saved in the file <model_file>.2,
+  where <model_file> is the model file name given in the arguments.
+
+randomize_training_order - If true, will randomize the passwords training
+  order.
+
+compute_stats - Compute pre-processing step and exit without training a neural
+  network.
+
+tokenize_words - If true, create a tokenized model.
+
+most_common_token_count - If tokenize_words is true, then this is the number of
+  tokens to simulate. E.g., 2000 will simulate the most common 2000 tokens in
+  the training set.
+
+tensorboard - Boolean. If true, will create training visualizations with training statistics
+
+tensorboard_dir - The directory where the tensorboard data should be saved. Defaults
+  to current working directory.
+
+early_stopping - Boolean. If true, will enable early stopping logic to save weights and
+  stop training when the accuracy fails to improve. The training will wait till
+  early_stopping_patience batches for the loss to decrease before it stops the training
+
+early_stopping_patience - Integer. The early stopping algorithm will wait till
+  the number of batches specified by this parameter before stopping the training
+
+
+
+# Guessing Configuration Options:
+
+lower_probability_threshold - This controls how many passwords to output
+  during generation. Lower threshold means more passwords. A value of 1e-7 will
+  output all passwords with probability above 1e-7.
+
+relevel_not_matching_passwords - If true, then passwords that do not match the
+  filter policy will have their probability equal to zero and that probability
+  will be redistributed to other passwords. Recommended true.
+
+guess_serialization_method - Default is 'human' which enumerates all passwords
+  above the lower_probability_threshold cutoff. 'delamico_random_walk' means
+  calculate password guess numbers using Monte Carlo simulations.
+  'generate_random' means generate random passwords. 'calculator' enumerates
+  all passwords, but does not save the enumerated passwords to disk; instead it
+  calculates the guess number of the test set of passwords.
+
+parallel_guessing - Boolean. If true, then use multiple cores to generate
+  passwords.
+
+fork_length - The prefix length to fork on when parallel_guessing is true. If
+  this value is 2, then prefixes of length 2 will be assigned to different
+  cores. For example, one core will generate passwords that start with 'aa',
+  another with 'ab', etc.
+
+guesser_intermediate_directory - Directory to store intermediate files used in
+  parallel guessing.
+
+cleanup_guesser_files - If true, then delete files in the
+  guesser_intermediate_directory after completion.
+
+password_test_fname - File name containing test passwords. Each password should
+  be on one line.
+
+chunk_size_guesser - Number of passwords to send to the GPU in one chunk. More
+  increases performance but could run out GPU of memory.
+
+max_gpu_prediction_size - Maximum number of password fragments to send to the
+  GPU in one chunk. More increases performance but could run out GPU of memory.
+
+gpu_fork_bias - Ratio to decrease the chunk size when using multiple processes.
+  Parallel guessing takes up more fixed memory on the GPU so can lead to
+  running out of GPU memory more easily. This value controls how much to
+  decrease memory by when forking.
+
+cpu_limit - Number of processes to fork when using parallel guessing.
+
+tokenize_guessing - If true, and if tokenize_words is true, then perform
+  tokenization during guessing.
+
+probability_striation - If non-zero, then instead of enumerating probabilities
+  for specific passwords, instead enumerate the guess numbers at certain
+  probability cutoffs. This is useful for exporting a pre-computation of
+  probability to guess number mapping.
+
+prob_striation_step - If probability_striation is true, then it will calculate
+  guess numbers for 10^(j * prob_striation_step) for j in
+  1..probability_striation. So for example, for prob_striation_step = 1 and
+  probability_striation = 10, it would calculate the guess number at the
+  followoing probabilities: 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8,
+  1e-9, 1e-10.
+
+enforced_policy - Will not generate guesses that do not match the policy.
+  Currently supported policies are:
+
+    'complex' - requires 8 characters and 4 classes.
+    'basic' - no requirements
+    '1class8' - requires 8 characters
+    'basic_long' - requires 16 characters
+    'complex_lowercase' - requires 8 characters and 3 character classes
+                          insensitive to case.
+    'complex_long' - requires 16 characters and 3 character classes
+    'complex_long_lowercase' - requires 16 characters and 2 character classes
+                               insensitive to case.
+    'semi_complex' - requires 12 characters and 3 character classes
+    'semi_complex_lowercase' - requires 12 characters and 2 character classes
+                               insensitive to case.
+    '3class12' - Same as semi_complex
+    '2class12_all_lowercase' - Same as semi_complex_lowercase
+    'one_uppercase' - Requires at least one uppercase character
+
+  *_lowercase policies mean that they are insensitve to case and case is
+  ignored. These are useful when preparing a train set using the
+  policyfilterer.py utility, but not useful for training or guessing with a
+  neural network.
+
+
+
+# Monte Carlo Methods Configuration Options:
+
+random_walk_seed_num - Number of passwords to keep in main memory in one chunk.
+  More increases memory requirements.
+
+random_walk_confidence_bound_z_value - confidence bound coefficeint. This
+  should be correspond to the coefficient for a confidence interval. E.g., 95%
+  means a value of 1.96, 99% means a value of 2.58
+  [https://en.wikipedia.org/wiki/Confidence_interval]. Default is 1.96.
+
+random_walk_confidence_percent - Confidence percent for the random_walk
+  guesser. A value of 5 will mean that the simulation will continue until all
+  passwords have confidence interval less than 5% of the estimated guess
+  number.
+
+random_walk_upper_bound - Upper bound on the number of rounds to continue
+  simulation.
+
+pwd_list_weights - Weighting to give different training sets. This should be a
+  json dictionary mapping file names to a ratio:
+
+  "pwd_list_weights" : {
+                     "file1" : 1,
+                     "file2" : 2
+  }
+
+  This will weight passwords in file1 as being twice as important as file2.
+
+
+# Deprecated Configuration Options related to Trie preprocessing. Don't use these:
+
+trie_serializer_encoding - default is 'utf8'.
+
+trie_serializer_type - 'reg' or 'fuzzy'.
+
+trie_implementation - Trie implementation. 'trie' for custom
+  implementation. None for no trie optimization.
+
+trie_fname - File name for storing trie.
+
+trie_intermediate_storage - File for storing intermediate trie.
+
+preprocess_trie_on_disk
+
+preprocess_trie_on_disk_buff_size
+
+toc_chunk_size
+
+use_mmap
+
+fuzzy_training_smoothing
+
+scheduled_sampling
+
+final_schedule_ratio
+
+
+
+Example Configuration File
+--------------------------
+
+You can also see the pre_built_networks/ directory for examples of
+configuration files. Here are some starting configuration files that you should
+modify to suit your needs.
+
+Combined arguments and configuration file for generic training.
+
+{
+    "args" : {
+        "arch_file" : "arch.json",
+        "weight_file" : "weight.h5",
+        "log_file" : "train_log.txt",
+        "pwd_file" : [
+            "[INPUT_FILE]"
+        ],
+        "pwd_format" : [
+            "list"
+        ]
+    },
+    "config" : {
+        "training_chunk" : 1000,
+        "training_main_memory_chunk": 10000000,
+        "min_len" : 8,
+        "max_len" : 30,
+        "context_length" : 10,
+        "chunk_print_interval" : 100,
+        "layers" : 2,
+        "hidden_size" : 1000,
+        "generations" : 5,
+        "training_accuracy_threshold" : -1,
+        "train_test_ratio" : 20,
+        "model_type" : "LSTM",
+        "train_backwards" : true,
+        "dense_layers" : 1,
+        "dense_hidden_size" : 512,
+        "secondary_training" : true,
+        "secondary_train_sets" : {
+            "pwd_file" : [
+                "[SECONDARY_INPUT_OPTIONAL]"
+            ],
+            "pwd_format" : [
+                "list"
+            ]
+        },
+
+        "simulated_frequency_optimization" : false,
+        "randomize_training_order" : true,
+        "uppercase_character_optimization" : true,
+        "rare_character_optimization" : true,
+        "rare_character_optimization_guessing" : true,
+        "parallel_guessing" : false,
+        "chunk_size_guesser" : 40000,
+        "random_walk_seed_num" : 100000,
+        "max_gpu_prediction_size" : 10000,
+        "random_walk_seed_iterations" : 1,
+        "no_end_word_cache" : true,
+        "intermediate_fname" : "intermediate_data.sqlite",
+        "save_model_versioned" : true
+    }
+}
+
+
+Example config of enumerating passwords:
+
+{
+    "args" : {
+        "arch_file" : "arch.json",
+        "weight_file" : "nn_len8.h5",
+        "log_file" : "guess_log.txt",
+        "enumerate_ofile" : "g1_enumerate.tsv"
+    },
+    "config" : {
+        "training_chunk" : 10000,
+        "min_len" : 8,
+        "max_len" : 30,
+        "context_length" : 10,
+        "chunk_print_interval" : 100,
+        "layers" : 2,
+        "hidden_size" : 1000,
+        "model_type" : "JZS2",
+        "simulated_frequency_optimization" : true,
+        "intermediate_fname" : "intermediate_data.sqlite",
+        "randomize_training_order" : true,
+        "uppercase_character_optimization" : true,
+        "rare_character_optimization" : true,
+        "rare_character_optimization_guessing" : true,
+        "parallel_guessing" : false,
+        "lower_probability_threshold" : 1e-6,
+        "padding_character" : true,
+        "chunk_size_guesser" : 20000,
+        "guess_serialization_method" : "human",
+        "random_walk_seed_num" : 100000,
+        "max_gpu_prediction_size" : 20000,
+        "random_walk_seed_iterations" : 1,
+        "no_end_word_cache" : true
+    }
+}
+
+
+
+Combined arguments and configuration file for guessing using Monte Carlo
+simulations:
+
+{
+  "args" : {
+    "arch_file" : "arch.json",
+    "weight_file" : "all_trained.h5.3",
+    "log_file" : "guess_log.txt",
+    "enumerate_ofile": "g3_long.tsv"
+  },
+  "config" : {
+    "training_chunk" : 1000,
+    "training_main_memory_chunk": 10000000,
+    "min_len" : 16,
+    "max_len" : 30,
+    "context_length" : 10,
+    "chunk_print_interval" : 100,
+    "layers" : 2,
+    "hidden_size" : 1000,
+    "generations" : 3,
+    "training_accuracy_threshold" : -1,
+    "train_test_ratio" : 20,
+    "model_type" : "JZS2",
+    "tokenize_words" : false,
+    "most_common_token_count" : 2000,
+
+    "bidirectional_rnn" : false,
+    "train_backwards" : true,
+
+    "dense_layers" : 1,
+    "dense_hidden_size" : 512,
+    "secondary_training" : true,
+    "secondary_train_sets" : {
+      "pwd_file" : [
+        "../leaks/all_combined_long_v2.txt"
+      ],
+      "pwd_format" : [
+        "list"
+      ]
+    },
+
+    "simulated_frequency_optimization" : false,
+
+    "randomize_training_order" : true,
+    "uppercase_character_optimization" : true,
+    "rare_character_optimization" : true,
+
+    "rare_character_optimization_guessing" : true,
+    "parallel_guessing" : false,
+    "lower_probability_threshold" : 1e-7,
+    "chunk_size_guesser" : 40000,
+    "guess_serialization_method" : "delamico_random_walk",
+    "password_test_fname" : "../leaks/basic16.txt",
+    "random_walk_seed_num" : 100000,
+    "max_gpu_prediction_size" : 10000,
+    "random_walk_seed_iterations" : 50,
+    "no_end_word_cache" : true,
+    "intermediate_fname" : "intermediate_data.sqlite",
+    "save_model_versioned" : true
+  }
+}
+
+
+Example guessing configuration for a complex policy.
+
+{
+    "args" : {
+        "arch_file" : "arch.json",
+        "weight_file" : "all_trained_cmplx.h5.3",
+        "log_file" : "guess_log.txt",
+      "enumerate_ofile": "g1_complex.tsv"
+    },
+    "config" : {
+        "training_chunk" : 1000,
+        "training_main_memory_chunk": 10000000,
+        "min_len" : 8,
+        "max_len" : 30,
+        "context_length" : 10,
+        "chunk_print_interval" : 100,
+        "layers" : 2,
+        "hidden_size" : 1000,
+        "generations" : 3,
+        "training_accuracy_threshold" : -1,
+        "train_test_ratio" : 20,
+        "model_type" : "JZS2",
+        "tokenize_words" : false,
+        "most_common_token_count" : 2000,
+        "enforced_policy" : "complex",
+
+        "bidirectional_rnn" : false,
+        "train_backwards" : true,
+
+        "dense_layers" : 1,
+        "dense_hidden_size" : 512,
+        "secondary_training" : true,
+        "secondary_train_sets" : {
+            "pwd_file" : [
+                "../leaks/all_combined_long_v2.txt"
+            ],
+            "pwd_format" : [
+                "list"
+            ]
+        },
+
+        "simulated_frequency_optimization" : false,
+
+        "randomize_training_order" : true,
+        "uppercase_character_optimization" : true,
+        "rare_character_optimization" : true,
+
+        "rare_character_optimization_guessing" : true,
+        "parallel_guessing" : false,
+        "lower_probability_threshold" : 1e-7,
+        "chunk_size_guesser" : 40000,
+        "guess_serialization_method" : "delamico_random_walk",
+        "password_test_fname" : "../leaks/complex/andrew8.txt",
+        "random_walk_seed_num" : 100000,
+        "max_gpu_prediction_size" : 10000,
+        "random_walk_seed_iterations" : 1,
+        "no_end_word_cache" : true,
+        "intermediate_fname" : "intermediate_data.sqlite",
+        "save_model_versioned" : true
+    }
+}
